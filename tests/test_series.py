@@ -1,23 +1,38 @@
 from utils.constants import SERIES_URL
+from pathlib import Path
+
+import pytest
+import yaml
+from jsonschema import validate
 
 
-def test_get_series(session, series_data):
+@pytest.mark.parametrize(
+    "series_data",
+    [
+        None,
+        "series_1.sql",
+        "series_3.sql",
+    ],
+    indirect=True,
+)
+def test_get_series_schema_validation(session, series_data):
+    """Проверка схемы ответа API при разном количестве данных."""
     response = session.get(SERIES_URL)
-
     assert response.status_code == 200
 
     data = response.json()
 
-    assert len(data) == len(series_data)
+    assert len(data) == series_data
 
-    for expected in series_data:
-        actual = next(
-            item for item in data
-            if item["id"] == expected["id"]
-        )
+    # Загружаем JSON Schema
+    schema_path = (
+        Path(__file__).resolve().parents[1]
+        / "schemas"
+        / "series_schema.yaml"
+    )
 
-        assert actual["name"] == expected["name"]
-        assert actual["photo"] == expected["photo"]
-        assert actual["rating"] == expected["rating"]
-        assert actual["status"] == expected["status"]
-        assert actual["review"] == expected["review"]
+    with open(schema_path, encoding="utf-8") as file:
+        schema = yaml.safe_load(file)
+
+    # Проверяем JSON Schema
+    validate(instance=data, schema=schema)

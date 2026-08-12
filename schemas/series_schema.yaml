@@ -1,0 +1,34 @@
+type: array
+items:
+  type: object
+  additionalProperties: false
+  required:
+    - id
+    - name
+    - photo
+    - rating
+    - status
+    - review
+  properties:
+    id:
+      type: integer
+    name:
+      type: string
+    photo:
+      type:
+        - string
+        - "null"
+    rating:
+      type:
+        - integer
+        - "null"
+    status:
+      type: string
+      enum:
+        - watching
+        - watched
+        - will_watch
+    review:
+      type:
+        - string
+        - "null"

@@ -1,6 +1,6 @@
-BASE_URL = "http://127.0.0.1"
+BASE_URL = "http://127.0.0.1/api/v1"
 
-SERIES_URL = f"{BASE_URL}/api/v1/series"
+SERIES_URL = f"{BASE_URL}/series"
 
 DB_HOST = "127.0.0.1"
 DB_PORT = 5432

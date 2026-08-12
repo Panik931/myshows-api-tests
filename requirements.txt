@@ -1,3 +1,5 @@
 pytest
 requests
 psycopg[binary]
+PyYAML
+jsonschema
