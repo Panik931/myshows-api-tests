@@ -1,9 +1,11 @@
+import allure
 import pytest
 import psycopg
 import requests
 
 from pathlib import Path
 
+from utils.api_client import ApiClient
 from utils.constants import (
     DB_HOST,
     DB_PORT,
@@ -15,28 +17,32 @@ from utils.constants import (
 
 @pytest.fixture
 def session():
-    """Создаёт сессию requests для отправки HTTP-запросов."""
-    with requests.Session() as session:
-        yield session
+    """Клиент для запросов к API: все вызовы логируются в allure."""
+    with allure.step("Создаём сессию API"):
+        raw_session = requests.Session()
+        client = ApiClient(session=raw_session)
+
+    yield client
+
+    with allure.step("Закрываем сессию API"):
+        raw_session.close()
 
 
 @pytest.fixture
 def series_data(request):
     """Загружает SQL-файл в БД и возвращает количество записей (для проверки схемы)."""
-    connection = psycopg.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-    )
+    sql_file = getattr(request, "param", None)
+
+    with allure.step(f"Подключаемся к БД и готовим таблицу series (параметр: {sql_file})"):
+        connection = psycopg.connect(
+            host=DB_HOST, port=DB_PORT, dbname=DB_NAME,
+            user=DB_USER, password=DB_PASSWORD,
+        )
 
     try:
         with connection.cursor() as cursor:
-            # Перед тестом очищаем таблицу
-            cursor.execute("DELETE FROM series")
-
-            sql_file = getattr(request, "param", None)
+            with allure.step("Очищаем таблицу series"):
+                cursor.execute("DELETE FROM series")
 
             if sql_file is None:
                 connection.commit()
@@ -44,44 +50,43 @@ def series_data(request):
                 return
 
             file_path = (
-                Path(__file__).resolve().parent
-                / "data"
-                / sql_file
+                Path(__file__).resolve().parent / "data" / sql_file
             )
 
-            sql = file_path.read_text(encoding="utf-8")
-            cursor.execute(sql)
+            with allure.step(f"Загружаем тестовые данные из файла {sql_file}"):
+                sql = file_path.read_text(encoding="utf-8")
+                cursor.execute(sql)
 
-            # Считаем количество записей
-            cursor.execute("SELECT COUNT(*) FROM series")
-            count = cursor.fetchone()[0]
+            with allure.step("Считаем количество записей в таблице series"):
+                cursor.execute("SELECT COUNT(*) FROM series")
+                count = cursor.fetchone()[0]
 
             connection.commit()
             yield count
 
     finally:
-        with connection.cursor() as cursor:
-            cursor.execute("DELETE FROM series")
-        connection.commit()
-        connection.close()
+        with allure.step("Очищаем таблицу series и закрываем подключение к БД"):
+            with connection.cursor() as cursor:
+                cursor.execute("DELETE FROM series")
+            connection.commit()
+            connection.close()
 
 
 @pytest.fixture
 def series_list(request):
     """Загружает SQL-файл в БД и возвращает список словарей (для проверки полей)."""
-    connection = psycopg.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-    )
+    sql_file = getattr(request, "param", None)
+
+    with allure.step(f"Подключаемся к БД и готовим таблицу series (параметр: {sql_file})"):
+        connection = psycopg.connect(
+            host=DB_HOST, port=DB_PORT, dbname=DB_NAME,
+            user=DB_USER, password=DB_PASSWORD,
+        )
 
     try:
         with connection.cursor() as cursor:
-            cursor.execute("DELETE FROM series")
-
-            sql_file = getattr(request, "param", None)
+            with allure.step("Очищаем таблицу series"):
+                cursor.execute("DELETE FROM series")
 
             if sql_file is None:
                 connection.commit()
@@ -89,18 +94,18 @@ def series_list(request):
                 return
 
             file_path = (
-                Path(__file__).resolve().parent
-                / "data"
-                / sql_file
+                Path(__file__).resolve().parent / "data" / sql_file
             )
 
-            sql = file_path.read_text(encoding="utf-8")
-            cursor.execute(sql)
+            with allure.step(f"Загружаем тестовые данные из файла {sql_file}"):
+                sql = file_path.read_text(encoding="utf-8")
+                cursor.execute(sql)
 
-            cursor.execute(
-                "SELECT id, name, photo, rating, status, review FROM series"
-            )
-            rows = cursor.fetchall()
+            with allure.step("Читаем данные серий из таблицы series"):
+                cursor.execute(
+                    "SELECT id, name, photo, rating, status, review FROM series"
+                )
+                rows = cursor.fetchall()
 
             yield [
                 {
@@ -115,24 +120,21 @@ def series_list(request):
             ]
 
     finally:
-        with connection.cursor() as cursor:
-            cursor.execute("DELETE FROM series")
-        connection.commit()
-        connection.close()
+        with allure.step("Очищаем таблицу series и закрываем подключение к БД"):
+            with connection.cursor() as cursor:
+                cursor.execute("DELETE FROM series")
+            connection.commit()
+            connection.close()
 
 
 @pytest.fixture
 def series_to_update():
     """Создаёт сериал в БД для тестов на обновление."""
-    connection = psycopg.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-    )
-
-    try:
+    with allure.step("Подключаемся к БД и создаём сериал для теста обновления"):
+        connection = psycopg.connect(
+            host=DB_HOST, port=DB_PORT, dbname=DB_NAME,
+            user=DB_USER, password=DB_PASSWORD,
+        )
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -151,15 +153,12 @@ def series_to_update():
                 ),
             )
             series_id = cursor.fetchone()[0]
-
         connection.commit()
-        yield series_id
 
-    finally:
+    yield series_id
+
+    with allure.step(f"Удаляем сериал с id={series_id} и закрываем подключение к БД"):
         with connection.cursor() as cursor:
-            cursor.execute(
-                "DELETE FROM series WHERE id = %s",
-                (series_id,),
-            )
+            cursor.execute("DELETE FROM series WHERE id = %s", (series_id,))
         connection.commit()
         connection.close()

@@ -1,5 +1,8 @@
-import pytest
+import json
+
+import allure
 import psycopg
+import pytest
 
 from utils.constants import (
     SERIES_URL,
@@ -11,6 +14,8 @@ from utils.constants import (
 )
 
 
+@allure.title("PUT /series/{series_id}: обновление поля {field}")
+@allure.severity(allure.severity_level.CRITICAL)
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -22,58 +27,59 @@ from utils.constants import (
     ],
 )
 def test_update_series_field(session, series_to_update, field, value):
-
     series_id = series_to_update
 
-    # Полное тело запроса.
-    payload = {
-        "name": "Тестовый сериал",
-        "photo": "https://example.com/old-photo.jpg",
-        "rating": 8,
-        "status": "watching",
-        "review": "Старый отзыв",
-    }
-
-    # Меняем только проверяемое поле
-    payload[field] = value
-
-    response = session.put(
-        f"{SERIES_URL}/{series_id}",
-        json=payload,
+    allure.attach(
+        str(series_id),
+        name="ID сериала для обновления",
+        attachment_type=allure.attachment_type.TEXT,
     )
 
-    print("URL:", response.url)
-    print("STATUS:", response.status_code)
-    print("BODY:", response.text)
+    with allure.step("Формируем тело запроса с обновлённым полем"):
+        payload = {
+            "name": "Тестовый сериал",
+            "photo": "https://example.com/old-photo.jpg",
+            "rating": 8,
+            "status": "watching",
+            "review": "Старый отзыв",
+        }
+        payload[field] = value
 
-    assert response.status_code == 200
+        allure.attach(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            name="Тело запроса PUT",
+            attachment_type=allure.attachment_type.JSON,
+        )
 
-    # Проверяем изменение непосредственно в БД
-    connection = psycopg.connect(
-        host=DB_HOST,
-        port=DB_PORT,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASSWORD,
-    )
+    with allure.step(f"Отправляем PUT-запрос для обновления поля '{field}'"):
+        response = session.put(
+            f"{SERIES_URL}/{series_id}",
+            json=payload,
+        )
 
-    try:
-        with connection.cursor() as cursor:
+    with allure.step("Проверяем, что статус-код ответа 200"):
+        assert response.status_code == 200
 
+    with allure.step(f"Подключаемся к БД и проверяем, что поле '{field}' обновилось"):
+        connection = psycopg.connect(
+            host=DB_HOST,
+            port=DB_PORT,
+            dbname=DB_NAME,
+            user=DB_USER,
+            password=DB_PASSWORD,
+        )
 
-            cursor.execute(
-                f"""
-                SELECT {field}
-                FROM series
-                WHERE id = %s
-                """,
-                (series_id,),
-            )
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    f"SELECT {field} FROM series WHERE id = %s",
+                    (series_id,),
+                )
+                result = cursor.fetchone()
 
-            result = cursor.fetchone()
+            with allure.step("Проверяем, что запись найдена и значение совпадает с ожидаемым"):
+                assert result is not None, "Запись не найдена в БД"
+                assert result[0] == value, f"Ожидалось {value}, получено {result[0]}"
 
-        assert result is not None
-        assert result[0] == value
-
-    finally:
-        connection.close()
+        finally:
+            connection.close()

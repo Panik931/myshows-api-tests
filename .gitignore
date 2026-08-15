@@ -1,5 +1,10 @@
-.venv/
+allure-results/
+allure-report/
+pokemon_report/
+myshows_report/
+*.zip
 __pycache__/
 *.pyc
 .pytest_cache/
+.venv/
 .idea/
