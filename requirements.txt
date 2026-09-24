@@ -3,3 +3,7 @@ requests
 psycopg[binary]
 PyYAML
 jsonschema
+allure-pytest==2.13.5
+pytest==8.3.3
+psycopg2-binary>=2.9.10       # или psycopg2-binary
+requests==2.32.3
