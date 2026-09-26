@@ -1,4 +1,5 @@
 import psycopg
+import os
 
 from utils.constants import (
     DB_HOST,
@@ -11,9 +12,9 @@ from utils.constants import (
 
 def get_db_connection():
     return psycopg.connect(
-        host="127.0.0.1",
-        port=5432,
-        dbname="my-shows-rating",
-        user="postgres",
-        password="123456",
+        host=os.getenv("DB_HOST", "127.0.0.1"),
+        port=int(os.getenv("POSTGRES_PORT", "5432")),
+        dbname=os.getenv("POSTGRES_DB", "my-shows-rating"),
+        user=os.getenv("POSTGRES_USER", "postgres"),
+        password=os.getenv("POSTGRES_PASSWORD", "123456"),
     )
