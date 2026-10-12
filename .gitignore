@@ -10,3 +10,6 @@ __pycache__/
 .idea/
 myshows_api_tests/
 .env
+.env
+docker/
+allure-results/
